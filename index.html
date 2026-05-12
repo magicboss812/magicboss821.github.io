@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SpaceSim Statuspräsentation</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <canvas id="starfield" aria-hidden="true"></canvas>
+  <div class="grain" aria-hidden="true"></div>
+
+  <nav class="deck-nav" aria-label="Präsentationsnavigation">
+    <a href="#s01">Start</a>
+    <a href="#s02">Status</a>
+    <a href="#s03">Architektur</a>
+    <a href="#s04">Physik</a>
+    <a href="#s05">Predictor</a>
+    <a href="#s06">Frames</a>
+    <a href="#s07">Rendering</a>
+    <a href="#s08">Steuerung</a>
+    <a href="#s09">Probleme</a>
+    <a href="#s10">Eigenanteil</a>
+  </nav>
+
+  <main class="deck">
+    <section class="slide title-slide" id="s01">
+      <div class="hero-copy">
+        <p class="eyebrow">SpaceSim · Stand Main-Branch · Mai 2026</p>
+        <h1>2D-Orbitalmechanik als eigenes Spielsystem</h1>
+        <p class="lead">Eine technische Statuspräsentation über Funktionen, Entwicklung, aktuelle Grenzen und nächsten Ausbau der Python/OpenGL-Simulation.</p>
+        <div class="hero-stats">
+          <span><b>Python</b> Kernlogik</span>
+          <span><b>OpenGL</b> Rendering</span>
+          <span><b>RK / RKN</b> Integration</span>
+          <span><b>Reference Frames</b> Darstellung</span>
+        </div>
+      </div>
+      <div class="orbit-stage" aria-hidden="true">
+        <div class="sun"></div>
+        <div class="orbit orbit-a"><i></i></div>
+        <div class="orbit orbit-b"><i></i></div>
+        <div class="orbit orbit-c"><i></i></div>
+        <div class="ship-icon"></div>
+      </div>
+    </section>
+
+    <section class="slide split" id="s02">
+      <div>
+        <p class="eyebrow">Aktueller Status</p>
+        <h2>Das Spiel ist grundsätzlich spielbar, aber noch klar ein Entwicklungsstand.</h2>
+        <p>Der aktuelle Stand verbindet eine startbare Echtzeit-Simulation mit steuerbarem Schiff, Planetenbahnen, Predictor-Linien, Reference Bodies und ersten Transfermöglichkeiten. Die wichtigsten Systeme sind nicht nur einzeln vorhanden, sondern bereits miteinander verbunden.</p>
+        <div class="status-grid">
+          <article><b>Startbar</b><span>Start über <code>python test.py</code></span></article>
+          <article><b>Steuerbar</b><span>Rotation, Schub, prograde/retrograde/radial</span></article>
+          <article><b>Transferfähig</b><span>Planeten-Transfers und Flybys möglich</span></article>
+          <article><b>Modifizierbar</b><span>Systeme über <code>solar_system.json</code></span></article>
+        </div>
+      </div>
+      <figure class="media-card">
+        <img src="assets/screenshot_system_overview.svg" alt="Visualisierte Spielszene mit Orbitlinien, Schiff, Predictor und HUD" />
+        <figcaption>Visualisierte Spielszene aus den beschriebenen Rendering- und Predictor-Funktionen.</figcaption>
+      </figure>
+    </section>
+
+    <section class="slide" id="s03">
+      <p class="eyebrow">Programmstruktur</p>
+      <h2>Die Hauptschleife verbindet Eingabe, Physik, Kamera, Predictor und Renderer.</h2>
+      <div class="pipeline">
+        <div><span>01</span><b>SystemLoader</b><em>liest solar_system.json</em></div>
+        <div><span>02</span><b>world</b><em>aktualisiert Planeten und Dynamik</em></div>
+        <div><span>03</span><b>schiffcontrol</b><em>setzt Rotation und Delta-v</em></div>
+        <div><span>04</span><b>Predictor</b><em>berechnet künftige Flugbahn</em></div>
+        <div><span>05</span><b>Frame Adapter</b><em>transformiert die Darstellung</em></div>
+        <div><span>06</span><b>Renderer</b><em>zeichnet OpenGL, HUD, Vektoren</em></div>
+      </div>
+      <pre class="code-panel"><code>input → thrust → world.update_planets(dt)
+      → world.update_dynamics(dt)
+      → predictor.update(ship, world)
+      → renderer.render(bodies, camera, points)</code></pre>
+    </section>
+
+    <section class="slide split" id="s04">
+      <div>
+        <p class="eyebrow">Physikmodell</p>
+        <h2>Backend-Physik bleibt absolut, die Perspektive wird visuell transformiert.</h2>
+        <p>Die Planeten laufen über geskriptete Keplerbahnen. Das Schiff wird dynamisch über Gravitation und Integratoren bewegt. Damit bleibt das System kontrollierbar und trotzdem deutlich näher an echter Orbitalmechanik als ein reines Arcade-Modell.</p>
+        <ul class="feature-list">
+          <li><b>Planeten:</b> Kepler-orbit script mit Semi-Major-Axis, Exzentrizität und Argument der Periapsis.</li>
+          <li><b>Schiff:</b> dynamischer Körper, beeinflusst durch gravitative Quellen.</li>
+          <li><b>Substeps:</b> große Simulationsschritte werden intern begrenzt und unterteilt.</li>
+          <li><b>Vergleichbarkeit:</b> Weltphysik und Predictor werden numerisch stärker aufeinander abgestimmt.</li>
+        </ul>
+      </div>
+      <figure class="media-card tall">
+        <img src="assets/screenshot_physics_layers.svg" alt="Schichtenmodell der Physik mit Kepler-Planeten und dynamischem Schiff" />
+      </figure>
+    </section>
+
+    <section class="slide" id="s05">
+      <p class="eyebrow">Predictor-Entwicklung</p>
+      <h2>Der Predictor ist der sichtbarste technische Kern des Projekts.</h2>
+      <div class="timeline">
+        <article><time>April</time><b>RK4 Predictor</b><span>genauer als einfache Verfahren, aber feste Schrittweite und teuer bei langen Linien.</span></article>
+        <article><time>Phase 2</time><b>Snapshot / Rolling</b><span>alte Punkte wiederverwenden, neue ergänzen. Idee sinnvoll, Synchronisation schwierig.</span></article>
+        <article><time>Phase 3</time><b>ASPI-Idee</b><span>Leapfrog weit weg, RK4 nahe an Körpern. Praktisch durch Übergangsfehler instabil.</span></article>
+        <article><time>Jetzt</time><b>Adaptive Verfahren</b><span>Zeitabhängige Körperpositionen, RK45/RKN-Ansatz und bessere Reference-Body-Darstellung.</span></article>
+      </div>
+      <div class="comparison-row">
+        <figure class="media-card"><img src="assets/screenshot_predictor_before.svg" alt="Predictor vorher mit falscher Verbindung" /><figcaption>Vorher: sichtbare Punkte wurden trotz Lücke verbunden.</figcaption></figure>
+        <figure class="media-card"><img src="assets/screenshot_predictor_after.svg" alt="Predictor nachher mit getrennten Segmenten" /><figcaption>Nachher: sichtbare Abschnitte werden getrennt behandelt.</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="slide split" id="s06">
+      <div>
+        <p class="eyebrow">Reference Frames</p>
+        <h2>Die Darstellung kann körperzentriert wirken, ohne die Backend-Physik umzuschreiben.</h2>
+        <p>Das System ist an Principia-ähnliche Plotting Frames angelehnt: Der physikalische Raum bleibt absolut, die Anzeige wird über Frame-Parameter und Adapter transformiert.</p>
+        <div class="mode-grid">
+          <article><b>BODY_CENTRED_NON_ROTATING</b><span>Körper im Zentrum, Achsen bleiben nicht mitrotiert.</span></article>
+          <article><b>BODY_CENTRED_BODY_DIRECTION</b><span>Richtung zu einem sekundären Körper wird als Orientierungsbezug genutzt.</span></article>
+          <article><b>Target Overlay</b><span>Schiff gegen ausgewählten Reference Body sichtbar vergleichen.</span></article>
+        </div>
+      </div>
+      <figure class="media-card">
+        <img src="assets/screenshot_reference_frames.svg" alt="Reference-Frame-Darstellung mit zentraler Erde und relativ bewegter Sonne" />
+      </figure>
+    </section>
+
+    <section class="slide" id="s07">
+      <p class="eyebrow">Rendering</p>
+      <h2>Die Performancefrage liegt nicht nur in der Berechnung, sondern auch im Zeichnen langer Linien.</h2>
+      <div class="render-grid">
+        <article><b>OpenGL + FXAA</b><span>Renderer nutzt OpenGL-Struktur mit optionalem Anti-Aliasing.</span></article>
+        <article><b>Screen-Culling</b><span>Punkte außerhalb des Bildschirms werden reduziert.</span></article>
+        <article><b>Segmentierung</b><span>sichtbare Abschnitte werden nicht mehr falsch über Lücken verbunden.</span></article>
+        <article><b>Cache</b><span>vorbereitete Predictor-Linie wird wiederverwendet, solange Kamera und Daten stabil bleiben.</span></article>
+        <article><b>Budgets</b><span>Rohpunkte, sichtbare Punkte und gezeichnete Punkte werden begrenzt.</span></article>
+        <article><b>Benchmark-Debug</b><span>Renderkosten und Punktzahlen können messbarer gemacht werden.</span></article>
+      </div>
+      <div class="metric-strip">
+        <span><b>10000</b> Predictor-Rohpunkte als typische Grenze</span>
+        <span><b>1000</b> maximale Sampling-Punkte im Renderer</span>
+        <span><b>300</b> Reference-Trajectory-Punkte</span>
+      </div>
+    </section>
+
+    <section class="slide split" id="s08">
+      <div>
+        <p class="eyebrow">Interaktion</p>
+        <h2>Die Steuerung ist bereits auf Debugging und orbitale Bedienung ausgelegt.</h2>
+        <p>Die Eingabe ist nicht nur Spielersteuerung. Sie ist gleichzeitig ein Testwerkzeug für Predictor, Reference Frames, Epizykelmodus und Renderingprobleme.</p>
+        <div class="keys">
+          <kbd>P</kbd><span>Predictor umschalten</span>
+          <kbd>E</kbd><span>Epizykelmodus</span>
+          <kbd>R</kbd><span>Reference Body wechseln</span>
+          <kbd>1 / 2</kbd><span>Frame-Modus wechseln</span>
+          <kbd>T</kbd><span>Target Overlay</span>
+          <kbd>+ / -</kbd><span>Predictor-Länge</span>
+          <kbd>9 / 0</kbd><span>Predictor-Präzision</span>
+          <kbd>I K J L</kbd><span>Prograde, retrograde, radial</span>
+        </div>
+      </div>
+      <figure class="media-card">
+        <img src="assets/screenshot_hud_vectors.svg" alt="HUD mit Velocity- und Thrust-Vektoren" />
+      </figure>
+    </section>
+
+    <section class="slide" id="s09">
+      <p class="eyebrow">Aktuelle Grenzen</p>
+      <h2>Die größten offenen Punkte sind Integration, Culling-Skalierung und Performance bei langen Predictions.</h2>
+      <div class="problem-grid">
+        <article><b>Integration</b><p>Bei komplexeren Systemen wie Sonne-Erde-Mond können Geschwindigkeiten, Gravitationsüberlagerung und Zeitschrittwahl sichtbare Abweichungen erzeugen.</p></article>
+        <article><b>Predictor-Threading</b><p>Der Predictor kann asynchron laufen, aber die Trajektorie selbst bleibt zeitlich sequenziell: Punkt n+1 hängt von Punkt n ab.</p></article>
+        <article><b>Zoom-Culling</b><p>Bei starkem Zoom-in kann die Linie zu stark ausgedünnt werden, obwohl mehr Bildschirmplatz für Details vorhanden wäre.</p></article>
+        <article><b>Renderingkosten</b><p>Selbst nicht gezeichnete oder stark reduzierte Daten verursachen Kosten durch Transformation, Prüfung und Segmentvorbereitung.</p></article>
+      </div>
+      <pre class="code-panel"><code>Kernkonflikt:
+physikalisch absoluter Raum
++ visuell transformierte Reference Frames
++ lange, zeitabhängige Predictor-Linien
+= hoher Anspruch an Synchronisation und Sampling</code></pre>
+    </section>
+
+    <section class="slide split" id="s10">
+      <div>
+        <p class="eyebrow">Eigenanteil</p>
+        <h2>Der Fortschritt liegt vor allem in der Verbindung mehrerer schwieriger Systeme.</h2>
+        <p>Der relevante Eigenanteil ist nicht nur, dass einzelne Funktionen existieren. Entscheidend ist, dass Rendering, Physik, Predictor, Kamera, Eingabe und Reference Frames gleichzeitig funktionieren müssen.</p>
+        <ul class="feature-list">
+          <li>Eigene Simulationsstruktur mit JSON-basierten Körpern.</li>
+          <li>Eigener Predictor mit Integrator-Experimenten und Performanceoptimierung.</li>
+          <li>Eigene OpenGL-Darstellung mit HUD, Vektoren, Orbitlinien und Debugdaten.</li>
+          <li>Eigene Reference-Frame-Pipeline für körperzentrierte Darstellung.</li>
+          <li>Iteratives Debugging anhand echter Fehler: falsche Linienverbindung, Frame-Konflikte, Integrationsabweichungen.</li>
+        </ul>
+      </div>
+      <figure class="media-card tall">
+        <img src="assets/screenshot_development_map.svg" alt="Entwicklungskarte des SpaceSim Projekts" />
+      </figure>
+    </section>
+
+    <section class="slide" id="s11">
+      <p class="eyebrow">Screenshot-Automation</p>
+      <h2>Für echte Repo-Screenshots liegt ein lokales Capture-Skript im Paket.</h2>
+      <p>Die hier enthaltenen Bilder sind technische Rekonstruktionen der beschriebenen Spielzustände. Zusätzlich enthält der Download ein Skript, das in einer lokalen Kopie des Repos Frames aufnehmen kann, wenn OpenGL/Pygame dort verfügbar ist.</p>
+      <div class="script-card">
+        <b>Datei:</b> <code>tools/capture_spacesim_frames.py</code>
+        <pre><code>python tools/capture_spacesim_frames.py --repo C:\Pfad\zu\spacesim --frames 60 180 420 --out captured_frames</code></pre>
+      </div>
+      <p class="small-note">In dieser Umgebung konnte das Spiel nicht live ausgeführt werden, weil kein direkter GitHub-Clone und kein stabiler OpenGL-Spielkontext verfügbar war. Deshalb wurden die Screenshots als visuelle technische Rekonstruktionen gebaut und die lokale Capture-Automation beigelegt.</p>
+    </section>
+  </main>
+
+  <div class="progress"><span></span></div>
+  <script src="scripts.js"></script>
+</body>
+</html>
